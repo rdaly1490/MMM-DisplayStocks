@@ -1,3 +1,5 @@
+# WIP: Not consumable yet, will work on when I get time
+
 # MMM-DisplayStocks
 
 This is a module for the [MagicMirror²](https://github.com/MichMich/MagicMirror/).
