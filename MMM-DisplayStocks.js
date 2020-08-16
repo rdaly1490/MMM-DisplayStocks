@@ -214,7 +214,7 @@ Module.register("MMM-DisplayStocks", {
             : `${symbol}: Unknown`;
 
           const priceChangeDiv = document.createElement("div");
-          const upOrDownArrow = _symbol.change >= 0 ? "\u2b61" : "\u2b63";
+          const upOrDownArrow = _symbol.quote.change >= 0 ? "\u2b61" : "\u2b63";
 
           priceChangeDiv.innerHTML = _symbol
             ? ` ${upOrDownArrow}(${_symbol.quote.change})`
