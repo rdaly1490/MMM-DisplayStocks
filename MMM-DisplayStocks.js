@@ -1,5 +1,3 @@
-/* global Module */
-
 /* Magic Mirror
  * Module: MMM-DisplayStocks
  *
@@ -8,150 +6,197 @@
  */
 
 Module.register("MMM-DisplayStocks", {
-	defaults: {
-		updateInterval: 60000,
-		retryDelay: 5000
-	},
+  defaults: {
+    updateInterval: 180000,
+    retryDelay: 5000,
+    language: "en",
+    twoDigitCountryCode: "US",
+    containerClass: "medium"
+  },
 
-	requiresVersion: "2.1.0", // Required version of MagicMirror
+  requiresVersion: "2.1.0", // Required version of MagicMirror
 
-	start: function() {
-		var self = this;
-		var dataRequest = null;
-		var dataNotification = null;
+  start: function () {
+    var self = this;
+    var dataRequest = null;
+    var dataNotification = null;
 
-		//Flag for check if module is loaded
-		this.loaded = false;
+    //Flag for check if module is loaded
+    this.loaded = false;
 
-		// Schedule update timer.
-		this.getData();
-		setInterval(function() {
-			self.updateDom();
-		}, this.config.updateInterval);
-	},
+    // Schedule update timer.
+    this.getData();
+    setInterval(function () {
+      self.updateDom();
+    }, this.config.updateInterval);
+  },
 
-	/*
-	 * getData
-	 * function example return data and show it in the module wrapper
-	 * get a URL request
-	 *
-	 */
-	getData: function() {
-		var self = this;
+  getCurrencyFromCulture: function (culture) {
+    const country = culture.split(2, 4);
+    switch (country) {
+      case "US":
+      default:
+        return "USD";
+    }
+  },
 
-		var urlApi = "https://jsonplaceholder.typicode.com/posts/1";
-		var retry = true;
+  /*
+   * getData
+   * function example return data and show it in the module wrapper
+   * get a URL request
+   *
+   */
+  getData: function () {
+    var self = this;
 
-		var dataRequest = new XMLHttpRequest();
-		dataRequest.open("GET", urlApi, true);
-		dataRequest.onreadystatechange = function() {
-			console.log(this.readyState);
-			if (this.readyState === 4) {
-				console.log(this.status);
-				if (this.status === 200) {
-					self.processData(JSON.parse(this.response));
-				} else if (this.status === 401) {
-					self.updateDom(self.config.animationSpeed);
-					Log.error(self.name, this.status);
-					retry = false;
-				} else {
-					Log.error(self.name, "Could not load data.");
-				}
-				if (retry) {
-					self.scheduleUpdate((self.loaded) ? -1 : self.config.retryDelay);
-				}
-			}
-		};
-		dataRequest.send();
-	},
+    var urlApi = (symbols) => {
+      let url = symbols.reduce((acc, symbol, index) => {
+        const suffix = index === symbols.length - 1 ? "&" : ",";
+        return (acc += `${symbol.trim().toUpperCase()}${suffix}`);
+      }, "https://cloud.iexapis.com/v1/stock/market/batch?types=quote&symbols=");
+      url += `token=${self.config.appId}`;
+      return url;
+    };
 
+    var retry = true;
 
-	/* scheduleUpdate()
-	 * Schedule next update.
-	 *
-	 * argument delay number - Milliseconds before next update.
-	 *  If empty, this.config.updateInterval is used.
-	 */
-	scheduleUpdate: function(delay) {
-		var nextLoad = this.config.updateInterval;
-		if (typeof delay !== "undefined" && delay >= 0) {
-			nextLoad = delay;
-		}
-		nextLoad = nextLoad ;
-		var self = this;
-		setTimeout(function() {
-			self.getData();
-		}, nextLoad);
-	},
+    var dataRequest = new XMLHttpRequest();
 
-	getDom: function() {
-		var self = this;
+    var symbols = self.config.symbols || [];
+    if (!symbols.length) {
+      self.processData({});
+    }
 
-		// create element wrapper for show into the module
-		var wrapper = document.createElement("div");
-		// If this.dataRequest is not empty
-		if (this.dataRequest) {
-			var wrapperDataRequest = document.createElement("div");
-			// check format https://jsonplaceholder.typicode.com/posts/1
-			wrapperDataRequest.innerHTML = this.dataRequest.title;
+    const url = urlApi(symbols);
 
-			var labelDataRequest = document.createElement("label");
-			// Use translate function
-			//             this id defined in translations files
-			labelDataRequest.innerHTML = this.translate("TITLE");
+    dataRequest.open("GET", url, true);
+    dataRequest.onreadystatechange = function () {
+      console.log(this.readyState);
+      if (this.readyState === 4) {
+        console.log(this.status);
+        if (this.status === 200) {
+          self.processData(JSON.parse(this.response));
+        } else if (this.status === 401) {
+          self.updateDom(self.config.animationSpeed);
+          Log.error(self.name, this.status);
+          retry = false;
+        } else {
+          Log.error(self.name, "Could not load data.");
+        }
+        if (retry) {
+          self.scheduleUpdate(self.loaded ? -1 : self.config.retryDelay);
+        }
+      }
+    };
+    dataRequest.send();
+  },
 
+  /* scheduleUpdate()
+   * Schedule next update.
+   *
+   * argument delay number - Milliseconds before next update.
+   *  If empty, this.config.updateInterval is used.
+   */
+  scheduleUpdate: function (delay) {
+    var nextLoad = this.config.updateInterval;
+    if (typeof delay !== "undefined" && delay >= 0) {
+      nextLoad = delay;
+    }
+    nextLoad = nextLoad;
+    var self = this;
+    setTimeout(function () {
+      self.getData();
+    }, nextLoad);
+  },
 
-			wrapper.appendChild(labelDataRequest);
-			wrapper.appendChild(wrapperDataRequest);
-		}
+  getDom: function () {
+    var self = this;
 
-		// Data from helper
-		if (this.dataNotification) {
-			var wrapperDataNotification = document.createElement("div");
-			// translations  + datanotification
-			wrapperDataNotification.innerHTML =  this.translate("UPDATE") + ": " + this.dataNotification.date;
+    // create element wrapper for show into the module
+    var wrapper = document.createElement("div");
 
-			wrapper.appendChild(wrapperDataNotification);
-		}
-		return wrapper;
-	},
+    if (!this.config.appId) {
+      wrapper.innerHTML = "No API Key Provided";
+      return;
+    }
 
-	getScripts: function() {
-		return [];
-	},
+    if (this.dataRequest) {
+      var wrapperDataRequest = document.createElement("div");
+      Object.keys(this.dataRequest).forEach((symbol) => {
+        const symbolDiv = document.createElement("div");
+        symbolDiv.classList.add("MMM-Display-Stock");
+        symbolDiv.classList.add(self.config.containerClass || "medium");
 
-	getStyles: function () {
-		return [
-			"MMM-DisplayStocks.css",
-		];
-	},
+        const culture = `${self.config.language}-${self.config.twoDigitCountryCode}`;
+        const _symbol = self.dataRequest[symbol];
 
-	// Load translations files
-	getTranslations: function() {
-		//FIXME: This can be load a one file javascript definition
-		return {
-			en: "translations/en.json",
-			es: "translations/es.json"
-		};
-	},
+        const currentPrice = _symbol
+          ? new Intl.NumberFormat(culture, {
+              style: "currency",
+              currency: self.getCurrencyFromCulture(culture)
+            }).format(_symbol.quote.latestPrice.toFixed(2))
+          : "Unknown";
 
-	processData: function(data) {
-		var self = this;
-		this.dataRequest = data;
-		if (this.loaded === false) { self.updateDom(self.config.animationSpeed) ; }
-		this.loaded = true;
+        const priceDiv = document.createElement("div");
 
-		// the data if load
-		// send notification to helper
-		this.sendSocketNotification("MMM-DisplayStocks-NOTIFICATION_TEST", data);
-	},
+        priceDiv.innerHTML = currentPrice
+          ? `${symbol}: ${currentPrice}`
+          : `${symbol}: Unknown`;
 
-	// socketNotificationReceived from helper
-	socketNotificationReceived: function (notification, payload) {
-		if(notification === "MMM-DisplayStocks-NOTIFICATION_TEST") {
-			// set dataNotification
-			this.dataNotification = payload;
-			this.updateDom();
-		}
-	},
+        const priceChangeDiv = document.createElement("div");
+        const upOrDownArrow = _symbol.change >= 0 ? "\u2b61" : "\u2b63";
+
+        priceChangeDiv.innerHTML = _symbol
+          ? `${upOrDownArrow}(${_symbol.quote.change})`
+          : "";
+
+        symbolDiv.appendChild(priceDiv);
+        symbolDiv.appendChild(priceChangeDiv);
+
+        wrapperDataRequest.appendChild(symbolDiv);
+      });
+
+      wrapper.appendChild(wrapperDataRequest);
+    }
+
+    return wrapper;
+  },
+
+  getScripts: function () {
+    return [];
+  },
+
+  getStyles: function () {
+    return ["MMM-DisplayStocks.css"];
+  },
+
+  // Load translations files
+  getTranslations: function () {
+    //FIXME: This can be load a one file javascript definition
+    return {
+      en: "translations/en.json"
+    };
+  },
+
+  processData: function (data) {
+    var self = this;
+    this.dataRequest = data;
+    if (this.loaded === false) {
+      self.updateDom(self.config.animationSpeed);
+    }
+    this.loaded = true;
+
+    // the data if load
+    // send notification to helper
+    this.sendSocketNotification("MMM-DisplayStocks-NOTIFICATION_TEST", data);
+  },
+
+  // socketNotificationReceived from helper
+  socketNotificationReceived: function (notification, payload) {
+    if (notification === "MMM-DisplayStocks-NOTIFICATION_TEST") {
+      // set dataNotification
+      this.dataNotification = payload;
+      this.updateDom();
+    }
+  }
 });

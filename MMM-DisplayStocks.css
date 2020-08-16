@@ -1,10 +1,4 @@
-/*
- *
- * MMM-DisplayStocks
- *
- * Rob
- * MIT Licensed.
- *
- * Custom here your css module
- *
- */
+.MMM-Display-Stock {
+  display: flex;
+  flex-direction: row;
+}
