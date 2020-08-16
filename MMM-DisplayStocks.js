@@ -5,13 +5,24 @@
  * MIT Licensed.
  */
 
+const PAGE_SIZE = 5;
+
+function chunkArrayInGroups(arr, size) {
+  const newArray = [];
+  for (let i = 0; i < arr.length; i += size) {
+    newArray.push(arr.slice(i, i + size));
+  }
+  return newArray;
+}
+
 Module.register("MMM-DisplayStocks", {
   defaults: {
     updateInterval: 180000,
     retryDelay: 5000,
     language: "en",
     twoDigitCountryCode: "US",
-    containerClass: "medium"
+    containerClass: "medium",
+    paginate: true
   },
 
   requiresVersion: "2.1.0", // Required version of MagicMirror
@@ -109,6 +120,44 @@ Module.register("MMM-DisplayStocks", {
     }, nextLoad);
   },
 
+  pages: { page: 1, maxPages: 1, shouldScroll: false },
+
+  updatePage: function () {
+    const self = this;
+    // hide page
+    const showingPage = document.querySelector(
+      `.pageNumber-${self.pages.page}`
+    );
+    showingPage.classList.remove("show");
+    showingPage.classList.add("hide");
+
+    if (self.pages.page === self.pages.maxPages) {
+      self.pages.page = 1;
+    } else {
+      self.pages.page += 1;
+    }
+
+    //show new page
+    const newShowingPage = document.querySelector(
+      `.pageNumber-${self.pages.page}`
+    );
+    newShowingPage.classList.remove("hide");
+    newShowingPage.classList.add("show");
+  },
+
+  pageChangeInterval: null,
+
+  startPaging: function () {
+    const self = this;
+    if (
+      self.config.paginate &&
+      self.pages.shouldScroll &&
+      !self.pageChangeInterval
+    ) {
+      self.pageChangeInterval = setInterval(self.updatePage.bind(self), 5000);
+    }
+  },
+
   getDom: function () {
     var self = this;
 
@@ -122,38 +171,61 @@ Module.register("MMM-DisplayStocks", {
 
     if (this.dataRequest) {
       var wrapperDataRequest = document.createElement("div");
-      Object.keys(this.dataRequest).forEach((symbol) => {
-        const symbolDiv = document.createElement("div");
-        symbolDiv.classList.add("MMM-Display-Stock");
-        symbolDiv.classList.add(self.config.containerClass || "medium");
+      const symbols = Object.keys(this.dataRequest);
 
-        const culture = `${self.config.language}-${self.config.twoDigitCountryCode}`;
-        const _symbol = self.dataRequest[symbol];
+      if (symbols.length > PAGE_SIZE) {
+        self.pages.shouldScroll = true;
+        self.pages.maxPages = Math.ceil(symbols.length / PAGE_SIZE);
+        self.startPaging();
+      }
 
-        const currentPrice = _symbol
-          ? new Intl.NumberFormat(culture, {
-              style: "currency",
-              currency: self.getCurrencyFromCulture(culture)
-            }).format(_symbol.quote.latestPrice.toFixed(2))
-          : "Unknown";
+      wrapperDataRequest.classList.add(
+        self.pages.shouldScroll ? "scroll-list" : "list"
+      );
 
-        const priceDiv = document.createElement("div");
+      const symbolsPages = chunkArrayInGroups(symbols, PAGE_SIZE);
 
-        priceDiv.innerHTML = currentPrice
-          ? `${symbol}: ${currentPrice}`
-          : `${symbol}: Unknown`;
+      symbolsPages.forEach((symbolPage, index) => {
+        const pageDiv = document.createElement("div");
+        const pageNumber = index + 1;
+        pageDiv.classList.add("page");
+        pageDiv.classList.add(`pageNumber-${pageNumber}`);
+        pageDiv.classList.add(pageNumber === self.pages.page ? "show" : "hide");
 
-        const priceChangeDiv = document.createElement("div");
-        const upOrDownArrow = _symbol.change >= 0 ? "\u2b61" : "\u2b63";
+        symbolPage.forEach((symbol) => {
+          const symbolDiv = document.createElement("div");
+          symbolDiv.classList.add("MMM-Display-Stock");
+          symbolDiv.classList.add(self.config.containerClass || "medium");
 
-        priceChangeDiv.innerHTML = _symbol
-          ? `${upOrDownArrow}(${_symbol.quote.change})`
-          : "";
+          const culture = `${self.config.language}-${self.config.twoDigitCountryCode}`;
+          const _symbol = self.dataRequest[symbol];
 
-        symbolDiv.appendChild(priceDiv);
-        symbolDiv.appendChild(priceChangeDiv);
+          const currentPrice = _symbol
+            ? new Intl.NumberFormat(culture, {
+                style: "currency",
+                currency: self.getCurrencyFromCulture(culture)
+              }).format(_symbol.quote.latestPrice.toFixed(2))
+            : "Unknown";
 
-        wrapperDataRequest.appendChild(symbolDiv);
+          const priceDiv = document.createElement("div");
+
+          priceDiv.innerHTML = currentPrice
+            ? `${symbol}: ${currentPrice}`
+            : `${symbol}: Unknown`;
+
+          const priceChangeDiv = document.createElement("div");
+          const upOrDownArrow = _symbol.change >= 0 ? "\u2b61" : "\u2b63";
+
+          priceChangeDiv.innerHTML = _symbol
+            ? ` ${upOrDownArrow}(${_symbol.quote.change})`
+            : "";
+
+          symbolDiv.appendChild(priceDiv);
+          symbolDiv.appendChild(priceChangeDiv);
+
+          pageDiv.appendChild(symbolDiv);
+        });
+        wrapperDataRequest.appendChild(pageDiv);
       });
 
       wrapper.appendChild(wrapperDataRequest);

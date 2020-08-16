@@ -1,4 +1,15 @@
 .MMM-Display-Stock {
   display: flex;
   flex-direction: row;
+  font-weight: bold;
+}
+
+.scroll-list .page.show {
+  visibility: visible;
+  height: auto;
+}
+
+.scroll-list .page.hide {
+  visibility: hidden;
+  height: 0;
 }
